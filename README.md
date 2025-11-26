@@ -1,185 +1,164 @@
-# HPT: 대규모 언어 모델을 위한 하이브리드 사후 훈련
+<div align="center">
 
-[*"Towards a Unified View of Large Language Model Post-Training"*](https://arxiv.org/abs/2509.04419) 논문(Tsinghua University, Shanghai AI Lab, WeChat AI, 2024)의 **Hybrid Post-Training (HPT)** 구현체입니다.
+# Towards a Unified View of Large Language Model Post-Training
 
-## HPT란?
+[![Paper](https://img.shields.io/badge/paper-A42C25?style=for-the-badge&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2509.04419)  [![Github](https://img.shields.io/badge/Unify--Post--Training-000000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/TsinghuaC3I/Unify-Post-Training)
 
-HPT는 훈련 중에 **지도 학습 미세조정(SFT)**과 **강화학습(RL)**을 동적으로 결합합니다:
+</div>
 
-- **낮은 성능** → 시연 데이터로부터 학습 (SFT 모드)
-- **높은 성능** → 탐색하며 자체 개선 (RL 모드)
+<div align="center" style="font-family: Arial, sans-serif;">
+  <p>
+    <a href="#news" style="text-decoration: none; font-weight: bold;">🎉 News</a> •
+    <a href="#introduction" style="text-decoration: none; font-weight: bold;">📖 Introduction</a> •
+    <a href="#unified-policy-gradient-estimator" style="text-decoration: none; font-weight: bold;">📝 Unified Policy Gradient Estimator</a> •
+    <a href="#hybrid-post-training" style="text-decoration: none; font-weight: bold;">✨ Hybrid Post-Training</a>
+  </p>
+  <p>
+    <a href="#getting-started" style="text-decoration: none; font-weight: bold;">🚀 Getting Started</a> •
+    <a href="#main-results" style="text-decoration: none; font-weight: bold;">📊 Main Results</a> •
+    <a href="#acknowledgements" style="text-decoration: none; font-weight: bold;">💖 Acknowledgements</a> •
+    <a href="#contact" style="text-decoration: none; font-weight: bold;">📨 Contact</a> •
+    <a href="#citation" style="text-decoration: none; font-weight: bold;">🎈 Citation</a>
+  </p>
+</div>
 
-이러한 적응형 접근법은 두 방법의 장점을 활용하면서 각각의 한계를 피합니다.
+> Two major sources of training data exist for post-training modern language models: on-policy (model-generated rollouts) data and off-policy (human or other-model demonstrations) data.
+> 
+> **In this paper, we show that these approaches are not in contradiction, but are instances of a single optimization process.**
 
-## 주요 특징
+# 🎉News
 
-- **동적 전략 전환**: 성공률에 따라 SFT와 RL 사이를 자동으로 전환
-- **세 가지 훈련 모드**:
-  - `switch`: 성능 임계값 기반 하드 스위칭
-  - `soft`: 적응형 계수를 통한 점진적 블렌딩
-  - `no`: HPT 없는 베이스라인 PPO
-- **VRAG 통합**: 복잡한 추론을 위한 멀티턴 비전 검색 증강 생성
-- **분산 훈련**: Ray 기반 아키텍처, FSDP 및 vLLM 사용
+- **[2025-09-05]** We introduce Unified Policy Gradient Estimator and Hybrid Post-Training (HPT).
 
-## 빠른 시작
+# 📖Introduction
 
-### 훈련 실행
+We introduce **Unified Policy Gradient Estimator**, a unified theoretical framework that bridges a broad class of LLM post-training algorithms, including SFT and RL. Building upon the insights derived from this framework, we further propose **Hybrid Post-Training (HPT)**, an adaptive algorithm that dynamically alternates between SFT and RL signals in response to model performance.
+
+<p align="center">
+   <img src="figs/upge_overview.png" alt="Overview of Unified Post-Training Framework." style="width: 100%;">
+</p>
+
+
+
+# 📝Unified Policy Gradient Estimator
+
+> SFT and RL, though usually seen as separate training paradigms, are actually instances of a single optimization process.
+
+We derive a unified framework that mathematically shows how diverse post-training methods naturally emerge as gradients of a shared objective, shaped by assumptions about the data distribution and the bias–variance tradeoff.
+Specifically, we decompose the gradient of all post-training algorithms into four interchangeable components:
+   - Stabilization mask
+   - Reference-Policy denominator  
+   - Advantage estimate
+   - Likelihood gradient
+
+Within this framework, the policy gradient of different post-training algorithms can be expressed as:
+
+```math
+\text{grad}_{Uni} = \mathbb{1}_{stable} \frac{1}{\pi_{ref}} \hat{A} \nabla \pi_{\theta}.
+```
+
+
+The figure below illustrates how several widely used post-training algorithms can be represented under this unified view:
+
+<p align="center">
+   <img src="figs/post-training_algorithms_table.png" alt="Theoretical unified view of various post-training algorithms." style="width: 90%;">
+</p>
+
+# ✨Hybrid Post-Training
+
+Our HPT algorithm dynamically adapts the mixing ratio between SFT and RL losses based on model performance. Please refer to the following code snippet for details about the implementation of HPT:
+
+<p align="center">
+   <img src="figs/hpt_pseudo_code.png" alt="The pseudo-code of Hybrid Post-Training." style="width: 90%;">
+</p>
+
+# 🚀Getting Started
+
+To run the Hybrid Post-Training (HPT) algorithm, follow these steps:
+
+### Env Setup
+```bash
+conda create -n hpt python=3.10
+conda activate hpt
+
+cd hpt
+pip install git+https://github.com/NICTA/pyairports.git
+pip install -r requirements.txt
+pip install -e .
+
+cd verl
+pip install -e .
+
+# For NVIDIA H20 Device 
+pip install nvidia-cublas-cu12==12.4.5.8
+```
+
+### Data Preparation
+For training data, you can directly download the `openr1.parquet` of LUFFY in [Elliott/Openr1-Math-46k-8192](https://huggingface.co/datasets/Elliott/Openr1-Math-46k-8192/tree/main) and put it in the `data` folder. Or you can run the following script:
 
 ```bash
-cd /home/user/DDAI
-bash exp_scripts/debug.sh
+cd data
+python prepare_train.py
 ```
 
-### 설정
-
-주요 설정 파일: `exp_scripts/debug.sh`
-
-핵심 파라미터:
-```bash
-trainer.unify_strategy="switch"     # HPT 모드: switch|soft|no
-trainer.switch_gate=0               # RL 모드 진입 성공 임계값
-algorithm.adv_estimator=grpo        # Advantage 추정기
-data.reward_impl_version=7          # 보상 버전
-```
-
-### 훈련 모니터링
-
-훈련 메트릭은 다음에 기록됩니다:
-- 콘솔 출력
-- W&B 대시보드 (설정된 경우)
-
-## 프로젝트 구조
-
-```
-DDAI/
-├── exp_scripts/
-│   └── debug.sh              # 훈련 실행 스크립트
-├── hpt/
-│   └── verl/verl/mix_src/
-│       └── mix_trainer.py    # 주요 HPT 구현 (1,577줄)
-├── Agent.md                  # AI 에이전트용 상세 기술 가이드
-└── README.md                 # 이 파일
-```
-
-## 핵심 개념
-
-HPT는 단일 손실 함수를 통해 SFT와 RL을 통합합니다:
-
-```
-L_total = L_RL(on-policy) + λ_SFT × L_SFT(off-policy)
-```
-
-- **On-policy 데이터**: 새로 생성된 모델 응답 → RL 손실 (탐색)
-- **Off-policy 데이터**: 데이터셋의 타겟 시퀀스 → SFT 손실 (모방)
-- **prefix_mask**: 어떤 토큰이 어떤 손실을 사용할지 표시
-
-On-policy와 off-policy 데이터의 비율은 프롬프트별 성공률에 따라 적응적으로 조정됩니다.
-
-## 작동 방식
-
-1. **응답 생성**: 현재 모델을 사용하여 응답 생성
-2. **보상 계산**: 각 응답에 대한 보상 계산
-3. **성공 카운트**: 프롬프트 그룹별 성공 횟수 집계
-4. **데이터 균형 조정**:
-   - 성공 횟수 적음 → on-policy 제거, off-policy 추가 (SFT 모드)
-   - 성공 횟수 많음 → on-policy 유지, off-policy 제거 (RL 모드)
-5. **모델 업데이트**: RL + SFT 통합 손실로 업데이트
-
-## 훈련 모드
-
-### Switch 모드 (기본값)
+For validation data, you can the preprocess script:
 
 ```bash
-trainer.unify_strategy="switch"
-trainer.switch_gate=0
+cd data
+python preprocess.py
 ```
 
-성공 횟수 기반 하드 스위칭:
-- `≤ switch_gate` 성공 → SFT 모드
-- `> switch_gate` 성공 → RL 모드
+### Training
+You can run the following command to start our HPT algorithm:
+``` bash
+# For Qwen Model
+bash exp_scripts/train.sh
 
-### Soft 모드
-
-```bash
-trainer.unify_strategy="soft"
+# For LLaMA Model
+bash exp_scripts/train_llama.sh
 ```
 
-점진적 계수 블렌딩:
-- 1회 성공 → 100% SFT
-- 2-4회 성공 → SFT + RL 혼합
-- 5회 이상 성공 → 100% RL
+We also provide the scripts of our main baselines:
+``` bash
+# LUFFY
+bash exp_scripts/train_luffy.sh
 
-### Baseline 모드
-
-```bash
-trainer.unify_strategy="no"
+# SRFT
+bash exp_scripts/train_srft.sh
 ```
 
-HPT 없는 표준 PPO.
+### Testing
+We perform the evaluation using the scripts provided by [DeepMath](https://github.com/zwhe99/DeepMath). You can conduct the evaluation by following [this instruction](https://github.com/zwhe99/DeepMath?tab=readme-ov-file#quick-start).
 
-## 모델 지원
+# 📊Main Results
 
-현재 다음 모델로 설정되어 있습니다:
-- **Qwen2.5-VL-7B-Instruct** (비전-언어 모델)
-- 수정을 통해 모든 HuggingFace 호환 모델 지원 가능
+HPT demonstrate consistent improvements across multiple models and benchmarks:
 
-## 하드웨어 요구사항
+<p align="center">
+  <img src="figs/results1.png" width="49%">
+  <img src="figs/results2.png" width="48%">
+</p>
 
-**최소 사양** (현재 설정 기준):
-- GPU 2개 (debug.sh에서 설정됨)
-- GPU당 ~40GB GPU 메모리 (FSDP 오프로딩 사용 시)
-- 64GB 이상 시스템 RAM (CPU 오프로딩용)
+# 💖Acknowledgements
+Our project mainly builds upon [LUFFY](https://github.com/ElliottYan/LUFFY) and [veRL](https://github.com/volcengine/verl). We utilize [vLLM](https://github.com/vllm-project/vllm) for inference. We also leverage the datasets of [LUFFY](https://huggingface.co/collections/Elliott/luffy-rl-6804e1f5d1ebe66ba8ac92f4) and backbone models of [Qwen2.5-Math](https://github.com/QwenLM/Qwen2.5-Math) and [Llama-3.1](https://huggingface.co/meta-llama/Llama-3.1-8B). We are grateful for these significant open-source contributions.
 
-**적용된 최적화**:
-- FSDP 파라미터/그래디언트/옵티마이저 오프로딩
-- 그래디언트 체크포인팅
-- 동적 배치 크기 조정
-- vLLM 메모리 제어 (GPU 활용률 40%)
+# 📨Contact
 
-## 문서
+For questions about this work, please contact:
 
-### 개발자/연구자용
+- Xingtai Lv: lvxt24@mails.tsinghua.edu.cn
+- Youbang Sun: ybsun@mail.tsinghua.edu.cn
+- Ning Ding: dn97@mail.tsinghua.edu.cn
 
-이 README는 높은 수준의 개요를 제공합니다.
+# 🎈Citation
 
-### AI 코딩 에이전트용
-
-**상세 기술 문서는 [Agent.md](./Agent.md)를 참조하세요:**
-- 상세한 아키텍처 문서
-- 코드 위치 참조 (파일 경로 + 라인 번호)
-- 구현 세부사항 및 알고리즘
-- 설정 파라미터 레퍼런스
-- 수정 가이드 및 디버깅 팁
-
-`Agent.md` 파일은 AI 에이전트가 광범위한 탐색 없이 이 코드베이스를 빠르게 이해하고 작업할 수 있도록 합니다.
-
-## 주요 논문
-
-- **HPT 논문**: [Towards a Unified View of Large Language Model Post-Training](https://arxiv.org/abs/2509.04419)
-- **공식 코드**: [TsinghuaC3I/Unify-Post-Training](https://github.com/TsinghuaC3I/Unify-Post-Training)
-
-## 인용
+If you find this work helpful, please cite our paper:
 
 ```bibtex
-@article{lv2024unified,
+@article{lv2025towards,
   title={Towards a Unified View of Large Language Model Post-Training},
-  author={Lv, Xingtai and Zuo, Yuxin and Sun, Youbang and Liu, Hongyi and Wei, Yuntian and Chen, Zhekai and He, Lixuan and Xuekai, Zhu and Zhang, Kaiyan and Wang, Bingning and Ding, Ning and Zhou, Bowen},
+  author={Lv, Xingtai and Zuo, Yuxin and Sun, Youbang and Liu, Hongyi and Wei, Yuntian and Chen, Zhekai and He, Lixuan and Zhu, Xuekai and Zhang, Kaiyan and Wang, Bingning and others},
   journal={arXiv preprint arXiv:2509.04419},
-  year={2024}
+  year={2025}
 }
 ```
-
-## 라이선스
-
-라이선스 정보는 원본 HPT 저장소를 참조하세요.
-
-## 참고사항
-
-이 코드베이스는 연구 구현체입니다. 일부 참조되는 파일들(예: `vrag_agent/`, `rl_dataset_with_target.py`)은 이 저장소에 포함되어 있지 않습니다.
-
----
-
-**빠른 링크**:
-- [Agent.md](./Agent.md) - AI 에이전트용 기술 문서
-- [exp_scripts/debug.sh](./exp_scripts/debug.sh) - 훈련 설정
-- [hpt/verl/verl/mix_src/mix_trainer.py](./hpt/verl/verl/mix_src/mix_trainer.py) - 핵심 구현
