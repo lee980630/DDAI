@@ -140,6 +140,12 @@ class RMManager:
         if 'rm_scores' in data.batch.keys():
             return data.batch['rm_scores']
 
+        
+        #로그에 학습 step 추가
+        step = data.batch.get('step', 'N/A')
+        step_key = f"step_{step}"
+        #//
+
         #reward_tensor는 최종 점수들을 담을 '성적표'
         reward_tensor = torch.zeros_like(data.batch['responses'], dtype=torch.float32)
 
@@ -155,6 +161,12 @@ class RMManager:
         else:
             log_data = {}
         #수정 추가 끝
+
+        # log 학습 step 추기
+        if step_key not in log_data:
+            log_data[step_key] = {}
+        log_data_for_step = log_data[step_key]
+        #//
 
         #각 답안지에서 '문제', '학생 답', '정답'을 깔끔하게 정리해서 '외부 채점 위원에게 보낼 서류 묶음'(data_eval)을 만듭니다.
         #data_eval: 모든 데이터의 (질문, 생성 답변, 정답) 쌍이 들어있는 리스트.
@@ -369,14 +381,18 @@ class RMManager:
             # structured logging
             uid = str(data_item.non_tensor_batch['uid'])
             query_key = uid
-            if query_key not in log_data:
-                log_data[query_key] = {"prompt": prompt_str, "agents": []}
+            #if query_key not in log_data:
+            if query_key not in log_data_for_step:
+                #log_data[query_key] = {"prompt": prompt_str, "agents": []}
+                log_data_for_step[query_key] = {"prompt": prompt_str, "agents": []}
 
-            agent_id = len(log_data[query_key]["agents"]) + 1
-            log_data[query_key]["agents"].append(
+            #agent_id = len(log_data[query_key]["agents"]) + 1
+            agent_id = len(log_data_for_step[query_key]["agents"]) + 1
+            #log_data[query_key]["agents"].append(
+            log_data_for_step[query_key]["agents"].append(
                 {
                     "agent_id": agent_id,
-                    "response": response_str_for_log,  #
+                    "response": response_str_for_log,  
                     "📣generated_answer📣": data_eval[i]['generated_answer'], 
                     "scores": {
                         "raw_score": raw_score,                        

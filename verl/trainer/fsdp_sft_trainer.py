@@ -37,7 +37,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, PreTrainedModel, A
 from verl.utils.torch_functional import get_cosine_schedule_with_warmup
 from tensordict import TensorDict
 from torch.utils.data import DataLoader, DistributedSampler
-from flash_attn.bert_padding import pad_input, unpad_input, rearrange, index_first_axis
+#from flash_attn.bert_padding import pad_input, unpad_input, rearrange, index_first_axis
 
 from verl.utils.fsdp_utils import get_fsdp_wrap_policy, init_fn, get_init_weight_context_manager
 from verl.utils.dataset import SFTDataset
@@ -50,12 +50,25 @@ import verl.utils.hdfs_io as hdfs_io
 from verl.utils.debug import log_gpu_memory_usage
 from peft import LoraConfig, TaskType, get_peft_model
 
-from verl.workers.sharding_manager import FSDPUlyssesShardingManager
+#from verl.workers.sharding_manager import FSDPUlyssesShardingManager
+
 from verl.utils.ulysses import ulysses_pad_and_slice_inputs, gather_outpus_and_unpad
 from verl import DataProto
 
 logger = logging.getLogger(__file__)
 logger.setLevel(os.getenv('VERL_SFT_LOGGING_LEVEL', 'WARN'))
+
+def pad_input(*args, **kwargs):
+    raise NotImplementedError("flash_attn is disabled. Set use_remove_padding=False and ulysses_sequence_parallel_size=1")
+
+def unpad_input(*args, **kwargs):
+    raise NotImplementedError("flash_attn is disabled.")
+
+def rearrange(*args, **kwargs):
+    raise NotImplementedError("flash_attn is disabled.")
+
+def index_first_axis(*args, **kwargs):
+    raise NotImplementedError("flash_attn is disabled.")
 
 
 def extract_step(path):
@@ -83,7 +96,7 @@ class FSDPSFTTrainer(object):
         self.config = config
         self.device_mesh = device_mesh
         self.ulysses_device_mesh = ulysses_device_mesh
-        self.sharding_manager = FSDPUlyssesShardingManager(self.ulysses_device_mesh)
+        self.sharding_manager = None
         # build tokenizer first
         local_model_path = copy_to_local(src=self.config.model.partial_pretrain, verbose=True)
         from verl.utils import hf_tokenizer
@@ -215,13 +228,21 @@ class FSDPSFTTrainer(object):
             #                                                                    trust_remote_code=trust_remote_code)
             
             #수정
-            self.model = AutoModelForVision2Seq.from_pretrained(
-                local_model_path,
-                config=config,
-                torch_dtype= torch.bfloat16,
-                attn_implementation= 'flash_attention_2',
-                trust_remote_code = True
-            )
+            # load config first
+            config = AutoConfig.from_pretrained(local_model_path, trust_remote_code=trust_remote_code)
+
+            # Disable flash attention 2
+            config._attn_implementation = "eager"
+            config.attn_implementation = "eager"
+
+            with init_context():
+                self.model = AutoModelForVision2Seq.from_pretrained(
+                    local_model_path,
+                    config=config,
+                    torch_dtype=torch.bfloat16,
+                    trust_remote_code=True
+                )
+
             ###########
 
 
@@ -327,7 +348,7 @@ class FSDPSFTTrainer(object):
 
 
         # Context manager for sequence parallel if needed
-        context = self.sharding_manager if use_sp else nullcontext()
+        context = nullcontext()
         with context:
             with torch.autocast(device_type='cuda', dtype=torch.bfloat16):
                 if not use_sp:

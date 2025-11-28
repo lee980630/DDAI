@@ -218,11 +218,14 @@ class ActorRolloutRefWorker(Worker):
             else:
                 actor_module_class = AutoModelForCausalLM
 
+            print(f"[HPT][FSDP] _build_model_optimizer START role={role}, path={local_path}", flush=True) #수정 디버깅
             actor_module = actor_module_class.from_pretrained(pretrained_model_name_or_path=local_path,
                                                               torch_dtype=torch_dtype,
                                                               config=actor_model_config,
                                                               attn_implementation='flash_attention_2',
                                                               trust_remote_code=trust_remote_code)
+            print(f"[HPT][FSDP] _build_model_optimizer END role={role}", flush=True) #수정 디버깅
+            
             # Apply Liger kernel to the model if use_liger is set to True
             if use_liger:
                 from liger_kernel.transformers.monkey_patch import _apply_liger_kernel_to_instance
@@ -457,6 +460,8 @@ class ActorRolloutRefWorker(Worker):
             self.rollout, self.rollout_sharding_manager = self._build_rollout()
 
         if self._is_ref:
+            print("[HPT][FSDP] ref_init_model START", flush=True)#수정 디버깅
+            
             self.ref_module_fsdp = self._build_model_optimizer(model_path=self.config.model.path,
                                                                fsdp_config=self.config.ref.fsdp_config,
                                                                optim_config=None,
@@ -466,10 +471,18 @@ class ActorRolloutRefWorker(Worker):
                                                                    'trust_remote_code', False),
                                                                use_liger=self.config.model.get('use_liger', False),
                                                                role='ref')[0]
+            print("[HPT][FSDP] ref_module_fsdp READY", flush=True) #수정 디버깅
+            
             OmegaConf.set_struct(self.config.ref, True)
             with open_dict(self.config.ref):
                 self.config.ref.use_remove_padding = use_remove_padding
+            print("[HPT][FSDP] before DataParallelPPOActor(ref)", flush=True) #수정 디버깅
+
             self.ref_policy = DataParallelPPOActor(config=self.config.ref, actor_module=self.ref_module_fsdp)
+            print("[HPT][FSDP] after DataParallelPPOActor(ref)", flush=True) #디버깅 수정
+
+            print("[HPT][FSDP] ref_init_model END", flush=True) #디버깅 수정
+
 
         if self._is_actor:
             self.flops_counter = FlopsCounter(self.actor_model_config)

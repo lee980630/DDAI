@@ -1,8 +1,8 @@
 import pandas as pd
 import json
 
-INPUT_PARQUET = "./train.parquet"
-OUTPUT_JSON = "./train.json"
+INPUT_PARQUET = "./filtered_train_matched_answer_exact.parquet"
+OUTPUT_JSON = "./filtered_train_matched_answer_exact.json"
 
 def parquet_to_json(input_file, output_file, orient="records", lines=False):
     df = pd.read_parquet(input_file)

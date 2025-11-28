@@ -146,6 +146,9 @@ def process_image(image, max_pixels: int = 2048 * 2048, min_pixels: int = 512 * 
 
     return image
 
+#수정 추가
+FORCED_COMPLETION_RESPONSE = "<think>Maximum turn limit reached. Trigger search_complete.</think><search_complete>true</search_complete>"    
+
 @dataclass
 class GenerationConfig:
     max_turns: int
@@ -265,7 +268,7 @@ class LLMGenerationManager:
                     #                    
 
                     multi_modal_data.append({'image': raw_images_list})
-                    image_inputs = self.processor.image_processor(raw_images_list, return_tensors='pt')
+                    image_inputs = self.processor.image_processor(raw_images_list, return_tensors='pt') 
                     multi_modal_inputs.append(image_inputs)
                     image_grid_thw = image_inputs['image_grid_thw']
                     obs_str = ''.join([f"<|vision_start|>{self.processor.image_token * (image_grid_thw_item.prod() // merge_length)}<|vision_end|>" for image_grid_thw_item in image_grid_thw])
@@ -278,6 +281,7 @@ class LLMGenerationManager:
                     multi_modal_inputs.append(BatchFeature(dict())) 
             # ret image
             elif isinstance(obs_item,list) and isinstance(obs_item[0],dict):
+
                 img_file_list = [item['image_file'] for item in obs_item]
                 for image_item in img_file_list:
                     if image_item not in self.retrievaled_images[idx]:
@@ -556,30 +560,71 @@ class LLMGenerationManager:
             if not active_mask.sum():
                 break
             
-            if 'multi_modal_inputs' in rollings.non_tensor_batch.keys():
-                rollings_active = DataProto.from_dict(
-                    tensors={k: v[active_mask] for k, v in rollings.batch.items()},
-                    non_tensors={k: v[active_mask] for k, v in rollings.non_tensor_batch.items()}
-                )
+            #수정 제거 max turn 5
+            # if 'multi_modal_inputs' in rollings.non_tensor_batch.keys():
+            #     rollings_active = DataProto.from_dict(
+            #         tensors={k: v[active_mask] for k, v in rollings.batch.items()},
+            #         non_tensors={k: v[active_mask] for k, v in rollings.non_tensor_batch.items()}
+            #     )
+            # else:
+            #     rollings_active = DataProto.from_dict({
+            #         k: v[active_mask] for k, v in rollings.batch.items()
+            #     })  
+            
+            #수정 추가 max turn5              
+            is_last_turn = step == self.config.max_turns - 1
+
+            if not is_last_turn:
+                if 'multi_modal_inputs' in rollings.non_tensor_batch.keys():
+                    rollings_active = DataProto.from_dict(
+                        tensors={k: v[active_mask] for k, v in rollings.batch.items()},
+                        non_tensors={k: v[active_mask] for k, v in rollings.non_tensor_batch.items()}
+                    )
+                else:
+                    rollings_active = DataProto.from_dict({
+                        k: v[active_mask] for k, v in rollings.batch.items()
+                    })
+            #
+
+
+            #수정 maxturn 5
+            # actor_monitor.start() #측정 지점 1: '계획' 생성 성능 측정 수정
+            # gen_output = self._generate_with_gpu_padding(rollings_active)
+            # actor_monitor.stop() #측정 끝
+                actor_monitor.start() #측정 지점 1: '계획' 생성 성능 측정 수정
+                gen_output = self._generate_with_gpu_padding(rollings_active)
+                actor_monitor.stop() #측정 끝            
+            #//    
+
+            #수정 max turn 5
+            #meta_info = gen_output.meta_info     
+                meta_info = gen_output.meta_info
+            #//
+
+            #수정 mac turn5
+            # responses_ids, responses_str = self._postprocess_responses(gen_output.batch['responses'])
+            # print(responses_str[0])
+                responses_ids, responses_str = self._postprocess_responses(gen_output.batch['responses'])
+                print(responses_str[0])
             else:
-                rollings_active = DataProto.from_dict({
-                    k: v[active_mask] for k, v in rollings.batch.items()
-                })                
+                forced_count = active_mask.sum().item()
+                responses_str = [FORCED_COMPLETION_RESPONSE] * forced_count
+                if forced_count > 0:
+                    responses_ids = self._batch_tokenize(responses_str)
+                else:
+                    responses_ids = torch.empty((0, 0), dtype=rollings.batch['input_ids'].dtype)
+            #//            
 
-            actor_monitor.start() #측정 지점 1: '계획' 생성 성능 측정 수정
-            gen_output = self._generate_with_gpu_padding(rollings_active)
-            actor_monitor.stop() #측정 끝
-
-            meta_info = gen_output.meta_info     
-
-            responses_ids, responses_str = self._postprocess_responses(gen_output.batch['responses'])
-            print(responses_str[0])
 
             
             # Execute in environment and process observations
             
             #개별 예제(example) 수준에서 빈자리를 채워주는(pad)'
             responses_ids, responses_str = self.tensor_fn._example_level_pad(responses_ids, responses_str, active_mask)
+
+            #수정 추가 max turn 5
+            responses_ids = responses_ids.to(rollings.batch['input_ids'].device)
+            #//
 
 
             #수정----#
@@ -814,6 +859,7 @@ class LLMGenerationManager:
                 search_results_list = []
                 for i in range(0, len(search_requests), batch_size):
                     batch_reqs = search_requests[i:i + batch_size]
+
                     response = requests.post(self.config.search_url, json=batch_reqs)                    
                     search_results_single_batch = response.json()
                     search_results_list.extend(search_results_single_batch)                  
@@ -876,14 +922,32 @@ class LLMGenerationManager:
                 
         for prediction in predictions:
             if isinstance(prediction, str): # for llm output
-                pattern = r'<(search|bbox|search_complete)>(.*?)</\1>'
-                match = re.search(pattern, prediction, re.DOTALL)
-                if match:
-                    content = match.group(2).strip()  # Return only the content inside the tags
-                    action = match.group(1)
+
+                #수정 max turn 5
+                # pattern = r'<(search|bbox|search_complete)>(.*?)</\1>'
+                # match = re.search(pattern, prediction, re.DOTALL)
+                # if match:
+                #     content = match.group(2).strip()  # Return only the content inside the tags
+                #     action = match.group(1)
+                stripped_prediction = prediction.strip()
+                if stripped_prediction == FORCED_COMPLETION_RESPONSE:
+                    content = 'true'
+                    action = 'search_complete'
+                #//
+
                 else:
-                    content = ''
-                    action = None
+                    #수정 mac turn5
+                    # content = ''
+                    # action = None
+                    pattern = r'<(search|bbox|search_complete)>(.*?)</\1>'
+                    match = re.search(pattern, prediction, re.DOTALL)
+                    if match:
+                        content = match.group(2).strip()  # Return only the content inside the tags
+                        action = match.group(1)
+                    else:
+                        content = ''
+                        action = None
+                    #//                    
             else:
                 raise ValueError(f"Invalid prediction type: {type(prediction)}")
             

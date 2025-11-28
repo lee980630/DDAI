@@ -46,7 +46,7 @@ from verl.utils.tracking import ValidationGenerationsLogger
 from torch.utils.data import RandomSampler, SequentialSampler
 from torchdata.stateful_dataloader import StatefulDataLoader
 import re
-from vrag_agent.generation import LLMGenerationManager, GenerationConfig
+from vrag_agent.generation_phase1 import LLMGenerationManager, GenerationConfig
 
 
 #수정 추가 gpu
@@ -802,6 +802,22 @@ class RayPPOTrainer(object):
                 timing_raw = {}
 
                 batch: DataProto = DataProto.from_single_dict(batch_dict)
+                
+                ##grpo_log에 step 추가
+                # 1. 현재 배치의 크기와 디바이스 정보를 가져옵니다.
+                current_batch_size = batch.batch.batch_size[0] # (48 같은 배치 크기)
+                device = batch.batch.device # (데이터가 있는 'cuda:0' 같은 디바이스)
+
+                # 2. self.global_steps (단일 숫자)를 텐서로 만듭니다.
+                step_tensor = torch.tensor(self.global_steps, device=device)
+
+                # 3. .expand()를 사용해 [48] 크기로 복제(확장)합니다.
+                expanded_step_tensor = step_tensor.expand(current_batch_size)
+
+                # 4. 크기가 맞춰진 텐서를 할당합니다.
+                batch.batch['step'] = expanded_step_tensor
+                #//
+
                 gen_batch = batch.repeat_deepcopy(repeat_times=self.config.actor_rollout_ref.rollout.n_agent, interleave=True)
 
                 # pop those keys for generation
@@ -1083,7 +1099,7 @@ class RayPPOTrainer(object):
         sample_inputs = []
 
         gen_config = GenerationConfig(
-            max_turns=4,
+            max_turns=5,
             max_prompt_length=99999,
             num_gpus=self.config.trainer.n_gpus_per_node,
             search_url = self.config.retriever.url,

@@ -18,6 +18,8 @@ data:
   use_remove_padding: True
 model:
   partial_pretrain: ~/models/gemma-1.1-7b-it
+  use_flash_attn: False      # ← flash-attn 강제 OFF
+  attention_impl: xformers   
   fsdp_config:
     wrap_policy:
       min_num_params: 0

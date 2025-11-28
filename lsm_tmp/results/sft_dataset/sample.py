@@ -1,9 +1,9 @@
 import pandas as pd
 
 # --- 설정 ---
-INPUT_FILE = 'val.parquet'      # 원본 Parquet 파일 이름
-OUTPUT_FILE = 'val_sample_20.parquet' # 저장할 샘플 파일 이름
-NUM_ROWS = 20                   # 추출할 데이터 개수
+INPUT_FILE = 'filtered_val_fin.parquet'      # 원본 Parquet 파일 이름
+OUTPUT_FILE = 'filtered_val_fin_100.parquet' # 저장할 샘플 파일 이름
+NUM_ROWS = 10                   # 추출할 데이터 개수
 
 def create_parquet_sample(input_path, output_path, num_samples):
     """

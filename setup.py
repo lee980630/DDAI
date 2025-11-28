@@ -1,3 +1,4 @@
+
 # Copyright 2024 Bytedance Ltd. and/or its affiliates
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -35,11 +36,10 @@ install_requires = [
   'pybind11',
   'pylatexenc',
   'ray>=2.10',
-  #'tensordict<0.6',
-  'tensordict<1.0',
+  'tensordict<0.6',
   'torchdata',
-  'transformers',
-  'vllm<=0.6.3',
+  'transformers==4.49.0',
+  'vllm==0.8.2',
   'wandb',
 ]
 

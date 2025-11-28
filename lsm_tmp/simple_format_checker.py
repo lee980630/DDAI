@@ -1,33 +1,11 @@
 import re
 import json
-import os
-from datetime import datetime
-
-# --- 로그 기능 추가 ---
-# 로그를 저장할 디렉토리와 파일 경로를 설정합니다.
-LOG_DIR = "./checker_logs"
-LOG_FILE = os.path.join(LOG_DIR, "solution_str_log.txt")
-
-# 스크립트 실행 시 로그 디렉토리가 없으면 자동으로 생성합니다.
-os.makedirs(LOG_DIR, exist_ok=True)
-# --------------------
 
 def simple_format_checker(data_source, solution_str, ground_truth, extra_info):
     """
     Assistant의 전체 대화 기록(solution_str)을 검사하여,
     모든 턴이 정해진 문법 규칙을 따랐는지 확인하고, 입력값을 로그로 남깁니다.
     """
-
-    # --- 로그 기능 추가 ---
-    # 'a' 모드(append)로 파일을 열어, 기존 로그에 새로운 내용을 추가합니다.
-    with open(LOG_FILE, "a", encoding="utf-8") as f:
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        f.write(f"========== Log at {timestamp} ==========\n")
-        f.write("Received solution_str:\n")
-        f.write("-" * 40 + "\n")
-        f.write(solution_str)
-        f.write("\n" + "-" * 40 + "\n\n")
-    # --------------------
 
     # 1단계: Assistant의 턴(Turn)만 분리하기
     assistant_turns = re.findall(r"<\|im_start\|>assistant(.*?)<\|im_end\|>", solution_str, re.DOTALL)

@@ -14,7 +14,9 @@ test.sh
 **/*.tar.gz
 **/playground
 **/wandb
-
+**/Qwen2.5-VL-7B_sft
+**/grpo_model
+**/*.pem
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

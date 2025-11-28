@@ -19,7 +19,8 @@ import torch.nn as nn
 
 # Supported models using HF Rmpad
 # TODO(sgm): HF may supported more than listed here, we should add more after testing
-_MODELS_SUPPORT_RMPAD = {'llama', 'mistral', 'gemma', 'qwen2', 'qwen2_vl', 'qwen2_5_vl'}
+#수정 'qwen2_5_vl_text'추가
+_MODELS_SUPPORT_RMPAD = {'llama', 'mistral', 'gemma', 'qwen2', 'qwen2_vl', 'qwen2_5_vl','qwen2_5_vl_text'}
 
 
 def check_model_support_rmpad(model_type: str):
@@ -32,10 +33,10 @@ def check_model_support_rmpad(model_type: str):
     if model_type in ("qwen2_vl", "qwen2_5_vl"):  # patch remove padding for qwen2vl mrope
         from verl.models.transformers.qwen2_vl import ulysses_flash_attn_forward
         from transformers.models.qwen2_vl.modeling_qwen2_vl import Qwen2VLFlashAttention2
-        from transformers.models.qwen2_5_vl.modeling_qwen2_5_vl import Qwen2_5_VLFlashAttention2
+        from transformers.models.qwen2_5_vl.modeling_qwen2_5_vl import Qwen2_5_VLFlashAttention2 #수정 호환
 
         Qwen2VLFlashAttention2.forward = ulysses_flash_attn_forward
-        Qwen2_5_VLFlashAttention2.forward = ulysses_flash_attn_forward
+        Qwen2_5_VLFlashAttention2.forward = ulysses_flash_attn_forward #수정 호환
         print("Qwen2vl patch applied!")
 
 
