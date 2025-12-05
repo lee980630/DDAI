@@ -17,6 +17,7 @@ test.sh
 **/Qwen2.5-VL-7B_sft
 **/grpo_model
 **/*.pem
+**/merged_model_grpo
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
